@@ -46,6 +46,7 @@ Okullarda ders saatlerini, tenefüsleri, İstiklâl Marşı törenlerini ve depr
 - **Python sunucu** (`zunucu/sunucu.py`): ses dosyalarını ve API'yi tarayıcıya sunar.
 - **Chrome tarayıcı**: zil programını çalıştırır, saatleri kontrol eder, sesi çalar.
 - **Arduino Uno**: USB üzerinden tarayıcıya bağlıdır. Anfi rölesini açıp kapar. RF kumanda sinyallerini alır.
+- DİKKAT: Orjinal Arduino Uno kullanın. Klon çipli olan arduino unolar seri port bağlantısında sürekli sorun çıkarıyor. 
 - **RF Kumanda (433 MHz, 4 kanal)**: kablosuz olarak İstiklâl Marşı, zil, anfi toggle ve durdur komutları gönderir.
 
 ---
