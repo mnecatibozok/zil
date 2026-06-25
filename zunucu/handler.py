@@ -6,7 +6,7 @@ import http.server, json, os, shutil, subprocess, threading, time, urllib.parse,
 
 from utils     import build_manifest, build_mp3_manifest, ntp_offset_saniye
 from ezan      import vakit_cek
-from zilsesler import load_anons_ayar, save_anons_ayar
+from zilsesler import load_anons_ayar, save_anons_ayar, load_zil_ses_ayar, save_zil_ses_ayar
 
 # Kumanda komutu — process içi bellek (poll mekanizması)
 _kumanda_cmd  : str   = ''
@@ -110,6 +110,9 @@ class ZilHandler(http.server.SimpleHTTPRequestHandler):
         if path == '/api/anons-ayar':
             return self._serve_json(load_anons_ayar())
 
+        if path == '/api/zil-ses-ayar':
+            return self._serve_json(load_zil_ses_ayar())
+
         if path in ('/kumanda', '/kumanda.html'):
             return self._serve_html(_KUMANDA_HTML)
 
@@ -176,6 +179,9 @@ class ZilHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/anons-ayar':
             return self._post_anons_ayar(body)
+
+        if path == '/api/zil-ses-ayar':
+            return self._post_zil_ses_ayar(body)
 
         if path == '/api/ses-yukle':
             return self._post_ses_yukle(body)
@@ -298,6 +304,14 @@ class ZilHandler(http.server.SimpleHTTPRequestHandler):
         try:
             data = save_anons_ayar(body)
             print(f'[ZIL] Anons ayarları kaydedildi: {data}')
+            self._serve_json({'ok': True, 'ayar': data})
+        except Exception as e:
+            self._serve_json({'ok': False, 'hata': str(e)})
+
+    def _post_zil_ses_ayar(self, body):
+        try:
+            data = save_zil_ses_ayar(body)
+            print(f'[ZIL] Zil ses ayarları kaydedildi: {data}')
             self._serve_json({'ok': True, 'ayar': data})
         except Exception as e:
             self._serve_json({'ok': False, 'hata': str(e)})

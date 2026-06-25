@@ -894,7 +894,7 @@ tr.row-now td:first-child { border-left: 3px solid var(--accent) !important; }
   <!-- Ayarlar Sekme Butonları -->
   <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;">
     <button class="tab active" onclick="switchAyarTab('zil')" id="ayarTab_zil">⚙ Zil &amp; Okul</button>
-    <button class="tab" onclick="switchAyarTab('ses')" id="ayarTab_ses">🔊 Ses Dosyaları</button>
+    <button class="tab" onclick="switchAyarTab('ses')" id="ayarTab_ses">🔊 Zil Ses Dosyalari</button>
     <button class="tab" onclick="switchAyarTab('mp3zil')" id="ayarTab_mp3zil">🎵 MP3 Zil Modu</button>
     <button class="tab" onclick="switchAyarTab('anfi')" id="ayarTab_anfi">🔉 Anfi</button>
     <button class="tab" onclick="switchAyarTab('sistem')" id="ayarTab_sistem">⏻ Sistem</button>
@@ -1145,7 +1145,11 @@ tr.row-now td:first-child { border-left: 3px solid var(--accent) !important; }
   <!-- ════════════════════════════════════════════ -->
   <div id="ayarPanel_ses" style="display:none;">
     <div class="card">
-      <div class="chd"><em>🔊</em> Ses Dosyaları</div>
+      <div class="chd"><em>🔊</em> Zil Ses Dosyalari</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span id="zilSesKaydetMsg" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--green);flex:1;"></span>
+        <button class="btn btn-p" onclick="zilSesAyarKaydet()" style="padding:5px 12px;font-size:0.72rem;background:var(--green);white-space:nowrap;">💾 Kaydet</button>
+      </div>
       <div id="sndPanel"></div>
       <div style="margin-top:10px;display:flex;align-items:center;gap:10px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px dashed var(--border);border-radius:8px;flex:1;">
@@ -1920,10 +1924,10 @@ const MAX_CATCHUP_MINS = 30; // Uzun uyku / ekran koruyucu sonrası catchup penc
 
 const SND_DEFS = [
   {key:'zil',           label:'Zil (Genel/Manuel/Kumanda)', file:'zil.mp3',           color:'var(--green)'},
-  {key:'zilTenefus',    label:'Zil — Tenefüs Çıkışı / Son Zil', file:'zil_tenefus.mp3', color:'#94a3b8'},
-  {key:'zilOgrenci',    label:'Zil — Öğrenci Girişi',       file:'zil_ogrenci.mp3',   color:'var(--accent)'},
-  {key:'zilOgretmen',   label:'Zil — Öğretmen Girişi',      file:'zil_ogretmen.mp3',  color:'var(--orange)'},
-  {key:'zilToplanma',   label:'Zil — Sabah Toplanma',       file:'zil_toplanma.mp3',  color:'var(--purple)'},
+  {key:'zilTenefus',    label:'Zil — Tenefüs Çıkışı / Son Zil', file:'zil.mp3', color:'#94a3b8'},
+  {key:'zilOgrenci',    label:'Zil — Öğrenci Girişi',       file:'zil.mp3',   color:'var(--accent)'},
+  {key:'zilOgretmen',   label:'Zil — Öğretmen Girişi',      file:'zil.mp3',  color:'var(--orange)'},
+  {key:'zilToplanma',   label:'Zil — Sabah Toplanma',       file:'zil.mp3',  color:'var(--purple)'},
   {key:'mars',          label:'İstiklâl Marşı',             file:'IstiklalMarsi.mp3', color:'var(--red)'},
   {key:'saygi',         label:'Saygı Duruşu (1dk)',         file:'saygi1.mp3',        color:'var(--purple)'},
   {key:'saygi2dk',      label:'Saygı Duruşu (2dk)',         file:'saygi2.mp3',        color:'var(--purple)'},
@@ -2830,7 +2834,7 @@ function buildSndPanel() {
     const isFallback = !!(loaded && s._isFallback);
     const fnText = loaded ? (s._fileName || s.file) : '— Yüklenmedi —';
     const fnColor = loaded ? (isFallback ? 'color:var(--orange)' : 'color:var(--green)') : 'color:var(--muted)';
-    const fnTitle = isFallback ? ' title="Özel dosya seçilmedi — şu an genel zil.mp3 kullanılıyor. 📁 ile kendi sesinizi seçebilirsiniz."' : '';
+    const fnTitle = isFallback ? ' title="Özel dosya seçilmedi — varsayılan zil.mp3 kullanılıyor. 📁 ile kendi sesinizi seçebilirsiniz."' : '';
     return `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;">
       <div style="width:6px;height:6px;border-radius:50%;background:${s.color};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;">
@@ -2869,11 +2873,6 @@ function _fileToBase64(file) {
   });
 }
 
-// Seçilen ses dosyasını zilsesleri/ klasörüne kalıcı olarak yazar (SND_DEFS'teki
-// standart dosya adıyla — örn. zilTenefus → zil_tenefus.mp3). Böylece bir sonraki
-// açılışta autoFetchSounds() bunu otomatik tekrar bulur, hiçbir "Kaydet" gerekmez.
-// Yalnızca yerel sunucu (localhost) üzerinde çalışırken mümkündür; aksi halde
-// seçim sadece bu oturumda (blob URL) geçerli kalır.
 async function persistSndToServer(key, file, def) {
   if(!location.hostname.match(/^(localhost|127\.0\.0\.1)$/)) {
     addLog('⚠️', `"${def?.label||key}" yalnızca bu oturumda geçerli — yerel sunucu olmadan kalıcı kaydedilemez.`);
@@ -2893,12 +2892,60 @@ async function persistSndToServer(key, file, def) {
       sndCache[key] = new Audio(sndUrls[key]);
       sndCache[key].preload = 'none';
       if(def) def._isFallback = false; // artık kendi dosyası var, genel zil.mp3'e düşmesin
+      // Dosya adını ses ayar kaydına işaretle ve otomatik kaydet
+      _pendingZilSesAyar[key] = canonicalName;
       addLog('💾', `"${def?.label||key}" kalıcı kaydedildi: zilsesleri/${canonicalName}`);
+      zilSesAyarKaydet(); // Otomatik kaydet — program kapanıp açılınca seçim korunsun
     } else {
       addLog('⚠️', `"${def?.label||key}" kalıcı kaydedilemedi: ${d.hata||'bilinmeyen hata'} — sadece bu oturumda geçerli.`);
     }
   } catch(e) {
     addLog('⚠️', `"${def?.label||key}" kalıcı kaydedilemedi: ${e.message} — sadece bu oturumda geçerli.`);
+  }
+}
+
+// Değiştirilmiş zil sesi dosya adlarını tutar — Kaydet butonuna basılana kadar
+let _pendingZilSesAyar = {};
+
+function _zilSesAyarDegisti() {
+  const msgEl = document.getElementById('zilSesKaydetMsg');
+  if(msgEl) { msgEl.textContent = '● Kaydedilmemiş değişiklik var'; msgEl.style.color = 'var(--orange)'; }
+}
+
+async function zilSesAyarKaydet() {
+  if(!location.hostname.match(/^(localhost|127\.0\.0\.1)$/)) {
+    addLog('⚠️', 'Ses ayarları yalnızca yerel sunucu üzerinde kaydedilebilir.');
+    return;
+  }
+  const msgEl = document.getElementById('zilSesKaydetMsg');
+  // Mevcut ayarları al
+  let mevcutAyar = {};
+  try {
+    const r = await fetch('/api/zil-ses-ayar',{cache:'no-cache'});
+    if(r.ok) mevcutAyar = await r.json();
+  } catch(e) {}
+  // Bekleyen değişiklikleri uygula
+  const yeniAyar = Object.assign({}, mevcutAyar, _pendingZilSesAyar);
+  // Kaydet
+  try {
+    const r = await fetch('/api/zil-ses-ayar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(yeniAyar)
+    });
+    const d = await r.json();
+    if(d.ok) {
+      _pendingZilSesAyar = {};
+      if(msgEl) { msgEl.textContent = '✅ Kaydedildi'; msgEl.style.color = 'var(--green)'; }
+      setTimeout(() => { if(msgEl) msgEl.textContent = ''; }, 3000);
+      addLog('💾', 'Zil ses ayarları kaydedildi.');
+    } else {
+      if(msgEl) { msgEl.textContent = '❌ Kayıt hatası'; msgEl.style.color = 'var(--red)'; }
+      addLog('⚠️', 'Zil ses ayarları kaydedilemedi: ' + (d.hata||'bilinmeyen hata'));
+    }
+  } catch(e) {
+    if(msgEl) { msgEl.textContent = '❌ Kayıt hatası'; msgEl.style.color = 'var(--red)'; }
+    addLog('⚠️', 'Zil ses ayarları kaydedilemedi: ' + e.message);
   }
 }
 
@@ -4972,6 +5019,32 @@ async function autoFetchSounds() {
     sesEl.textContent = loaded > 0 ? `✅ ${loaded} ses dosyası yüklendi` : '⚠ zilsesleri/ klasörünü kontrol edin';
     sesEl.style.color = loaded > 0 ? 'var(--green)' : 'var(--orange)';
   }
+
+  // Zil ses ayarları — kayıtlı özel dosya adlarını yükle ve uygula
+  try {
+    const rSes = await fetch(base+'/api/zil-ses-ayar',{cache:'no-cache'});
+    if(rSes.ok) {
+      const sesAyar = await rSes.json();
+      let sesAyarUygulandı = false;
+      for(const [key, customFile] of Object.entries(sesAyar)) {
+        if(!customFile) continue; // boş = varsayılan, dokunma
+        const customUrl = base+'/zilsesleri/'+customFile;
+        try {
+          const headR = await fetch(customUrl,{method:'HEAD',cache:'no-cache'});
+          if(headR.ok) {
+            if(sndUrls[key] && sndUrls[key].startsWith('blob:')) URL.revokeObjectURL(sndUrls[key]);
+            sndUrls[key] = customUrl+'?t='+Date.now();
+            sndCache[key] = new Audio(sndUrls[key]);
+            sndCache[key].preload = 'none';
+            const def = SND_DEFS.find(s=>s.key===key);
+            if(def) { def._fileName = customFile; def._isFallback = false; }
+            sesAyarUygulandı = true;
+          }
+        } catch(e2){}
+      }
+      if(sesAyarUygulandı) buildSndPanel();
+    }
+  } catch(e){}
 
   // MP3 klasörleri
   try {
