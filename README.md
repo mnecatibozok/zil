@@ -1,4 +1,4 @@
-> Güncelleme tarihi: 20 Haziran 2026
+﻿> Güncelleme tarihi: 1 Temmuz 2026
 
 # 🔔 Okul Zil Sistemi
 
