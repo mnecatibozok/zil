@@ -1,0 +1,837 @@
+> Güncelleme tarihi: 8 Ekim 2026
+
+**🇹🇷 Türkçe** | [🇬🇧 English](README.en.md)
+
+# 🔔 Okul Zil Sistemi
+
+Okullarda ders saatlerini, tenefüsleri, İstiklâl Marşı törenlerini ve deprem tatbikatlarını otomatik yöneten, **Arduino destekli akıllı zil sistemi**. Program bir bilgisayardan çalışır; ses kartı üzerinden mevcut anfi/hoparlör sistemine bağlanır. Zil saatleri web arayüzünden kolayca ayarlanır, RF kumandayla uzaktan kontrol edilir.
+
+---
+
+## 📋 İçindekiler
+
+1. [Sistem Nasıl Çalışır?](#-sistem-nasıl-çalışır)
+2. [Gereksinimler](#-gereksinimler)
+3. [Kurulum (Adım Adım)](#-kurulum-adım-adım)
+4. [Klasör Yapısı](#-klasör-yapısı)
+5. [Programı Başlatma](#-programı-başlatma)
+6. [Web Arayüzü — Sekme Sekme Açıklama](#-web-arayüzü--sekme-sekme-açıklama)
+7. [Zil Planları (A / B / C)](#-zil-planları-a--b--c)
+8. [Anfi (Amplifikatör) Kontrolü](#-anfi-amplifikatör-kontrolü)
+9. [Arduino Nedir ve Nasıl Kullanılır?](#-arduino-nedir-ve-nasıl-kullanılır)
+10. [Arduino Bağlantı Şeması](#-arduino-bağlantı-şeması)
+11. [RF Uzaktan Kumanda (Fiziksel)](#-rf-uzaktan-kumanda-fiziksel)
+12. [📱 Telefondan / Mobil Cihazdan Bağlanma (Uzaktan Kumanda)](#-telefondan--mobil-cihazdan-bağlanma-uzaktan-kumanda)
+13. [Ses Dosyaları](#-ses-dosyaları)
+14. [Deprem Tatbikatı Modu](#-deprem-tatbikatı-modu)
+15. [Ezan Entegrasyonu](#-ezan-entegrasyonu)
+16. [Sık Sorulan Sorular](#-sık-sorulan-sorular)
+17. [Sorun Giderme](#-sorun-giderme)
+18. [Sürüm Notları](#-sürüm-notları)
+
+---
+
+## 🧠 Sistem Nasıl Çalışır?
+
+```
+[zil-baslat.bat]
+       │
+       ├──▶ [Python Sunucu] ──▶ localhost:PORT üzerinden dosyaları ve API'yi sunar
+       │         │
+       │         └──▶ zil-port.txt'e port numarasını yazar
+       │
+       └──▶ [Google Chrome] ──▶ http://localhost:PORT/zil.html
+                   │
+                   ├── Zil programını gösterir (tarayıcı = kontrol paneli)
+                   ├── Seri port (USB) üzerinden Arduino'ya bağlanır
+                   ├── Arduino röleyi açar → anfi 220V alır → ses çalınır
+                   └── RF kumandadan gelen sinyalleri Arduino alır → tarayıcıya iletir
+```
+
+**Kısaca:** Bilgisayar + Python sunucu + Chrome tarayıcı + Arduino = tam otomatik zil sistemi.
+
+- **Python sunucu** (`zunucu/sunucu.py`): ses dosyalarını ve API'yi tarayıcıya sunar.
+- **Chrome tarayıcı**: zil programını çalıştırır, saatleri kontrol eder, sesi çalar.
+- **Arduino Uno**: USB üzerinden tarayıcıya bağlıdır. Anfi rölesini açıp kapar. RF kumanda sinyallerini alır.
+- **RF Kumanda (433 MHz, 4 kanal)**: kablosuz olarak İstiklâl Marşı, zil, anfi toggle ve durdur komutları gönderir.
+- <u>**DİKKAT:**</u> <span style="color:red"><u>Orjinal Arduino Uno kullanın. Klon çipli olan arduino unolar seri port bağlantısında sürekli sorun çıkarıyor.</u></span>
+
+---
+
+## 📦 Gereksinimler
+
+### Yazılım
+
+| Yazılım | Sürüm | Nereden İndirilir |
+|---------|-------|-------------------|
+| **Python** | 3.10 veya üzeri | [python.org](https://www.python.org/downloads/) |
+| **Google Chrome** | Güncel sürüm | [chrome.google.com](https://www.google.com/chrome/) |
+| **Arduino IDE** | 2.x | [arduino.cc](https://www.arduino.cc/en/software) |
+
+> ⚠️ Python kurulumunda **"Add Python to PATH"** kutucuğunu işaretlemeyi unutmayın!
+
+### Donanım
+
+| Parça | Adet | Açıklama |
+|-------|------|----------|
+| Arduino Uno | 1 | Röle ve RF kumanda kontrolü için |
+| 5V Röle Modülü (30A) | 1 | Anfi 220V besleme kontrolü |
+| RF 433MHz 4 Kanallı Alıcı | 1 | Uzaktan kumanda sinyali almak için |
+| RF 433MHz 4 Kanallı Verici (kumanda) | 1 | Elle zil/marş başlatmak için |
+| Çift Renkli LED (ortak katot) | 1 | Anfi durumu göstergesi |
+| Direnç 100Ω | 1 | Yeşil LED için |
+| Direnç 150Ω | 1 | Kırmızı LED için |
+| Buton | 1 | Manuel anfi açma/kapama |
+| USB Kablo (A-B, Arduino kablosu) | 1 | Arduino'yu bilgisayara bağlamak için |
+| Bilgisayar (Windows 10/11) | 1 | Sistemi çalıştırmak için |
+
+---
+
+## 🚀 Kurulum (Adım Adım)
+
+### 1. Dosyaları İndirin ve Yerleştirin
+
+1. Bu repodaki tüm dosyaları indirin (ZIP olarak indirip çıkartın **veya** `git clone` yapın).
+2. Çıkartılan `zil/` klasörünü istediğiniz bir yere koyun. Örnek: `C:\ZilSistemi\`
+3. Klasörün içinde şunlar olmalı:
+   - `zil-baslat.bat`
+   - `zil.html`
+   - `zunucu/` klasörü
+   - `zilsesleri/` klasörü (mp3 dosyaları burada)
+
+### 2. Python'un Kurulu Olduğunu Doğrulayın
+
+Başlat menüsünü açın → `cmd` yazın → Enter'a basın → şunu yazın:
+
+```
+python --version
+```
+
+`Python 3.x.x` gibi bir çıktı görüyorsanız hazırsınız. Hata alıyorsanız Python'u kurun (yukarıdaki linkten).
+
+### 3. Arduino Kodunu Yükleyin
+
+1. **Arduino IDE**'yi açın.
+2. `zil/Arduino/anfi.ino` dosyasını açın (`Dosya → Aç`). Arduino IDE "dosya `anfi` adlı bir klasör içinde olmalı" diye sorarsa **Tamam**'a basın.
+3. Arduino Uno'yu USB ile bilgisayara bağlayın.
+4. Arduino IDE'de `Araçlar → Port` menüsünden Arduino'nun bağlı olduğu COM portunu seçin (örn. `COM3`).
+5. `Araçlar → Kart` menüsünden `Arduino Uno`'yu seçin.
+6. **Yükle** butonuna (→ oku) tıklayın. Yükleme tamamlanana kadar bekleyin.
+
+### 4. Arduino'yu Devreye Bağlayın
+
+Bağlantı şeması için [Arduino Bağlantı Şeması](#-arduino-bağlantı-şeması) bölümüne bakın.
+
+### 5. Masaüstü Kısayolu Oluşturun (İsteğe Bağlı)
+
+1. `zil-baslat.bat` dosyasına sağ tıklayın.
+2. `Kısayol Oluştur` seçin.
+3. Oluşan kısayolu masaüstüne taşıyın.
+4. Kısayola sağ tıklayıp `Özellikler → Gelişmiş → Yönetici Olarak Çalıştır`'ı işaretleyin (firewall kuralı eklemek için gerekli).
+
+---
+
+## 📁 Klasör Yapısı
+
+```
+zil/
+├── zil-baslat.bat          ← Sistemi başlatan dosya — ÇİFT TIKLA
+├── arduino-usb-fix.bat     ← Arduino USB sorunlarını kalıcı çözer (bir kez yönetici olarak çalıştır)
+├── zil.html                ← Ana kontrol paneli (Chrome'da açılır)
+├── zil-port.txt            ← Sunucunun kullandığı port (otomatik oluşur)
+├── zil-anons-ayar.json     ← Anons ses ayarları (otomatik kaydedilir)
+├── zil-ses-ayar.json       ← Zil ses dosyası seçimleri (otomatik kaydedilir)
+├── blacklist.json          ← Devre dışı ses dosyaları listesi (otomatik)
+├── zil-ayarlar.json        ← Tüm ayarların sunucu yedeği (otomatik)
+├── yedek/                  ← zil-ayarlar.json günlük kopyaları, son 14 gün (otomatik)
+├── zil-sunucu.log          ← Sunucu günlüğü (otomatik; 1 MB × 3 dosya döner)
+│
+├── Arduino/
+│   ├── anfi.ino            ← Arduino kodu (karta bir kez yüklenir)
+│   ├── devre-semasi.svg    ← Devre bağlantı şeması (Türkçe)
+│   └── circuit-diagram.svg ← Devre bağlantı şeması (İngilizce)
+│
+├── zilsesleri/             ← TÜM SES DOSYALARI BURAYA GELECEK
+│   ├── zil.mp3              ← Genel zil + tüm zil tiplerinin varsayılanı
+│   ├── zil_tenefus.mp3      ← (isteğe bağlı) Tenefüs/son zil için özel ses
+│   ├── zil_ogrenci.mp3      ← (isteğe bağlı) Öğrenci girişi için özel ses
+│   ├── zil_ogretmen.mp3     ← (isteğe bağlı) Öğretmen girişi için özel ses
+│   ├── zil_toplanma.mp3     ← (isteğe bağlı) Sabah toplanma için özel ses
+│   ├── IstiklalMarsi.mp3    ← İstiklâl Marşı
+│   ├── saygi1.mp3           ← Saygı duruşu (1 dakika)
+│   ├── saygi2.mp3           ← Saygı duruşu (2 dakika)
+│   ├── depremikaz.mp3       ← Deprem ikaz sesi
+│   ├── siren.mp3            ← Deprem tahliye sireni
+│   ├── anons_tenefus.mp3    ← Tenefüs çıkışı anonsu (zil sonrası) (isteğe bağlı — pakette yok)
+│   ├── anons_toplanma.mp3   ← Toplanma anonsu (zil sonrası)
+│   ├── anons_ogretmen.mp3   ← Öğretmen girişi anonsu (zil sonrası)
+│   ├── anons_ogrenci.mp3    ← Öğrenci girişi anonsu (zil sonrası)
+│   └── anons_gunsonu.mp3    ← Son zil / gün sonu anonsu
+│
+├── temp/                   ← Geçici olarak devre dışı bırakılan sesler
+│
+└── zunucu/                 ← Python sunucu dosyaları (dokunmayın)
+    ├── sunucu.py
+    ├── handler.py
+    ├── utils.py
+    ├── ezan.py
+    ├── zilsesler.py
+    ├── app_settings.py      ← ayar yedeği
+    ├── kumanda_auth.py      ← telefon kumandası PIN/oturum
+    └── watchdog.py          ← Chrome bekçisi
+```
+
+---
+
+## ▶️ Programı Başlatma
+
+1. `zil-baslat.bat` dosyasına **çift tıklayın** (veya masaüstü kısayoluna).
+2. Kısa bir süre siyah bir konsol penceresi görürsünüz — bu normaldir, küçültülmüş kalır.
+3. Birkaç saniye içinde Chrome tarayıcı tam ekran açılır ve zil programı **otomatik olarak ön plana** gelir.
+4. Program açıldıktan sonra **ilk kez herhangi bir yere tıklayın** — bu, tarayıcının ses çalma iznini etkinleştirir.
+
+> 💡 Programı kapatmak için: Arayüzün sağ üstündeki **Sistemi Kapat** butonunu kullanın. Doğrudan Chrome'u kapatırsanız Python sunucu arka planda çalışmaya devam edebilir; bir sonraki açılışta otomatik kapatılır.
+
+> 🛡️ **Chrome bekçisi:** Program çalışırken sayfa her ~5 sn'de sunucuya "canlıyım" sinyali gönderir. Sinyal 90 sn kesilirse (Chrome çöktü/dondu) sunucu kiosk Chrome'u kendiliğinden yeniden açar (saatte en fazla 5 kez). **Sistemi Kapat** düğmesi bekçiyi devre dışı bırakır; Chrome'u Alt+F4 ile kapatırsanız yaklaşık 90 sn içinde geri açılır. Bekçiyi tamamen kapatmak için `ZIL_WATCHDOG=0` adlı bir ortam değişkeni tanımlayın.
+
+---
+
+## 🖥️ Web Arayüzü — Sekme Sekme Açıklama
+
+### Ana Ekran (Sol Panel)
+
+Programı açtığınızda sol tarafta sabit bir kontrol paneli görürsünüz:
+
+- **Saat**: Bilgisayarın güncel saati (büyük rakamlarla).
+- **Sonraki Zil**: Bir sonraki zilin kaç dakika sonra çalacağı.
+- **🔔 Zil / 🎖 Marş / 🤲 Saygı / ⚠️ İkaz** butonları: Elle istediğiniz sesi çalabilirsiniz.
+- **⏹ Durdur**: Çalan sesi anında keser.
+- **🔉 Anfi**: Anfi açma/kapama durumunu gösterir ve manuel kontrol sağlar.
+
+### 🏫 Okul / Dil Sekmesi
+
+Okul bilgilerini ve arayüz dilini buradan ayarlarsınız.
+
+- **Okul Adı / İl-İlçe**: Üst çubukta görünen okul bilgisi.
+- **🌐 Dil / Language**: Arayüzü **Türkçe** veya **İngilizce** olarak değiştirir. Seçtiğiniz dil tarayıcıya kalıcı olarak kaydedilir — program veya bilgisayar kapanıp yeniden açılsa da **son seçtiğiniz dilden devam eder**. Hiç dil seçimi yapılmadıysa (ilk açılış) program bilgisayarın/tarayıcının işletim sistemi diline bakılmaksızın **her zaman Türkçe** açılır.
+- **💾 Ayar Yedekleme / Geri Yükleme**: Okul bilgisi, zil programı, sessiz mod takvimi, ses ayarları, ezan/anfi ayarları dahil TÜM ayarları tek bir JSON dosyasına aktarır (**📤 Tüm Ayarları Dışa Aktar**) veya bu dosyadan geri yükler (**📥 Yedekten Geri Yükle**). Başka bir bilgisayara/Raspberry Pi'ye taşırken veya felaket kurtarma için kullanın. Ayrıca tüm `zil*` ayarları sunucuda `zil-ayarlar.json` dosyasına otomatik yedeklenir ve günlük kopyalar `yedek/` klasörüne alınır (son 14 gün).
+
+### 🔔 Zil Planlama Sekmesi
+
+Zil saatlerini buradan ayarlarsınız. **Plan A / Plan B / Plan C artık kendi içinde sekmeli** — panelin üstündeki **Ⓐ Plan A · Ⓑ Plan B · Ⓒ Plan C** sekmelerinden istediğiniz planın ayarlarına (ve varsa takvimine) tek tıkla geçebilirsiniz; aynı anda yalnızca seçili planın ayarları görünür, böylece üç planın birbirine karışması engellenmiş olur. Panel her açıldığında, o an gerçekten aktif olan plana ait sekme otomatik olarak öne gelir.
+
+- **Ders sayısı**: Günlük kaç ders olduğunu girin (1–10).
+- **Ders süresi**: Her dersin kaç dakika sürdüğünü girin.
+- **Tenefüs süreleri**: Her tenefüsün kaç dakika olduğunu tek tek ayarlayın.
+- **İlk ders başlangıcı**: İlk dersin başladığı saati girin (örn. 08:00).
+- **Öğle arasını düzenle**: Öğle tatil başlangıcını ve bitişini ayarlayın.
+- **Gün seçimi**: Pazartesi–Cuma için ayrı ayrı ayar yapılabilir.
+- **Hafta sonu**: Cumartesi/Pazar zil çalmasını etkinleştirmek için işaretleyin.
+- **Cuma Tören Modu**: Aktif edilirse, her Cuma belirtilen ders daha kısa işlenir ve tören için erken çıkış sağlanır; bu dersten sonraki satırlar programda pasif (soluk) gösterilir. **Plan C'de** bu mod yalnızca zilleri susturur, ders süresini kısaltmaz.
+- **Plan B / Plan C Takvimi**: Belirli günlerde veya tek seferlik tarihlerde otomatik olarak Plan B ya da Plan C'ye geçilmesini sağlayan haftalık/tarihsel takvim.
+
+Her değişikliği yaptıktan sonra **Kaydet** butonuna basın (çoğu ayar zaten anında otomatik kaydedilir).
+
+### 🔇 Sessiz Mod Sekmesi
+
+Belirli gün, hafta veya aylarda **otomatik zillerin tamamen çalmamasını** sağlar (örn. tatil dönemleri, sınav haftaları).
+
+- Takvimden bir tarih seçip **gün / hafta / ay** olarak sessiz mod listesine ekleyebilirsiniz.
+- Sessiz mod aktif olduğu günlerde otomatik ziller çalmaz; **manuel butonlar (🔔 Zil, 🎖 Marş vb.) bundan etkilenmez**, elle her zaman çalınabilir.
+- Liste üzerinden kayıtları tek tek veya **🗑 Tümünü Sil** ile toplu silebilirsiniz.
+
+### 🔊 Zil Ses Dosyaları Sekmesi
+
+- Ses dosyalarının yüklü olup olmadığını gösterir. **Zil sesleri artık tek bir ortak sesle sınırlı değildir** — Tenefüs, Öğrenci, Öğretmen ve Toplanma zilleri için ayrı ayrı dosya tanımlanabilir (`zil_tenefus.mp3`, `zil_ogrenci.mp3`, `zil_ogretmen.mp3`, `zil_toplanma.mp3`), ayrıca Marş/Saygı/Deprem sesleri de buradadır.
+- Her kutucuğun yanındaki 📁 butonuyla dosya seçtiğinizde, seçim **anında ve kalıcı olarak** `zilsesleri/` klasörüne kaydedilir — ayrıca bir "Kaydet" tuşuna basmanıza gerek yoktur, bilgisayar kapanıp açılsa da seçim kaybolmaz. (Bu otomatik kayıt yalnızca program yerel sunucu üzerinden — `zil-baslat.bat` ile — çalışırken geçerlidir.)
+- **Ana ses seviyesi**: Genel ses yüksekliğini ayarlayın. (Ses çıkış kanalı seçimi artık **⏻ Kapat / Kanal** sekmesindedir.)
+- Her ses için ▶ butonu ile test çalması yapabilirsiniz.
+- **Zil Sonrası Anons Ayarları**: Her zil tipinden (Tenefüs, Öğretmen, Öğrenci, Toplanma, Son Zil) hemen sonra hangi anons dosyasının otomatik çalacağını belirleyin. Dropdown'dan seçim yapmanız yeterli — değişiklik anında kaydedilir, ayrıca "Kaydet" tuşuna basmaya gerek yoktur. *— Anons yok —* seçiliyse sadece zil çalar, anons çalmaz.
+
+### 🎵 MP3 Zil Sekmesi
+
+Tenefüs zili olarak standart zil.mp3 yerine kendi MP3 müziklerinizi çalabilirsiniz.
+
+1. `zilsesleri/` klasörü içinde alt klasörler oluşturun (örn. `zilsesleri/muzik/`).
+2. MP3 dosyalarınızı o klasöre koyun.
+3. Bu sekmede ilgili klasörü seçin ve modu etkinleştirin.
+
+### 🔉 Anfi Sekmesi
+
+Arduino üzerinden anfi kontrolünü buradan yönetirsiniz.
+
+- **🔌 Yeni Port**: İlk kurulumda tıklayın. Chrome bir USB cihaz listesi açar, Arduino'yu seçin. Seçim hatırlanır, bir daha sormaz.
+- **Anfi Öncesi Gecikme**: Zil çalmadan kaç saniye önce anfi açılsın? (Anfi ısınma süresi için; varsayılan 3 sn, 0 girilirse gecikme olmaz.) Anfi kapalıyken zil sesi bu süre kadar geciktirilir.
+- **Anfi Sonrası Gecikme**: Zil bittikten kaç saniye sonra anfi kapansın?
+- **Durum göstergesi**: Yeşil = Anfi açık, Kırmızı = Anfi kapalı.
+
+### 🕌 Ezan Sekmesi
+
+- Ezan vakitlerinde otomatik zil çalmayı durdurmak için kullanılır (**🕌 Aktif** kutucuğuyla açılıp kapatılır).
+- **Önce dk / Sonra dk toleransı**: Tek bir "± dk" toleransı yerine artık **ezandan önceki** ve **ezandan sonraki** süre ayrı ayrı belirlenebiliyor (örn. Önce: 2dk, Sonra: 2dk). Varsayılan her ikisi de **2 dakika**. Bir zil, ezan vaktinden "Önce dk" kadar erken ile "Sonra dk" kadar geç arasına denk geliyorsa çakışma sayılır.
+- İl/İlçe seçilince günlük vakit bilgisi otomatik çekilir. Sistem tek bir kaynağa bağımlı değildir — Sunucu Proxy → Diyanet, Diyanet (doğrudan), diyanethaber.com.tr, Habertürk, NTV ve Aladhan API gibi birden fazla kaynağı sırayla dener; biri başarısız olursa otomatik olarak bir sonrakine geçer. İsterseniz vakitleri elle de girebilirsiniz (Manuel Vakit Girişi).
+- **Manuel vakit düzeltmesi artık kalıcı kalıyor:** Manuel Vakit Girişi kutucuklarından tek bir namaz vaktini elle değiştirirseniz (örn. Öğle saatini düzeltirseniz), bu değer **o gün için** kalıcı olarak kullanılır — program tekrar otomatik vakit çekse (elle 🕌 Çek butonuna basılsa veya günlük otomatik çekim çalışsa) bile **elle girdiğiniz değerin üzerine yazılmaz**. Değiştirmediğiniz diğer vakitler normal şekilde otomatik güncellenmeye devam eder. Elle düzenlenmiş bir vakit, "Bugünkü Vakitler" listesinde ✎ simgesiyle işaretlenir. **↺ Bugünü Sıfırla** butonuyla o günkü tüm elle düzeltmeleri kaldırıp tekrar tamamen otomatik vakitlere dönebilirsiniz. (Bu düzeltmeler tarihe bağlıdır; ertesi gün otomatik olarak yeni çekilen vakitler kullanılır.)
+- Ezan modu aktifken çakışan zil, **Çakışma Modu** ayarına göre davranır: sessizlik / sadece zil / sadece anons / ikisi de. **"⚠️ Zil Çalınamadı"** bildirimi yalnızca zilin gerçekten çalmayacağı modlarda (sessizlik, sadece anons) gösterilir. Çakışan tenefüste MP3 playlist de başlatılmaz.
+- **Zil tablosundaki çakışma uyarısı**: Ana ekrandaki Zil Programı tablosunda, o satırda çalacak olan bir zil saati ezan vaktiyle çakışıyorsa, ilgili zilin altında kırmızı renkli bir uyarı görünür (örn. *"Öğle Ezanı Saati. Ses Kapalı"*) — böylece hangi zilin neden çalmayacağı zil çalmadan önce, tablodan görülebilir. Aynı satırdaki birden fazla zilden (örn. Tenefüs Çıkış + Öğrenci Zili) birden fazlası çakışıyorsa, her biri kendi altında ayrı ayrı uyarı gösterir.
+
+### ⏻ Kapat / Kanal Sekmesi
+
+- **Otomatik Kapatma**: Belirlediğiniz saatte bilgisayarın güvenli şekilde kapanmasını sağlar (önce anfi kapatma sinyali gönderilir, birkaç saniye sonra sunucu üzerinden `shutdown` komutu çalışır). Yalnızca program yerel sunucu üzerinden (`zil-baslat.bat`) çalışırken kullanılabilir. İki modu vardır: **🔁 Toplu Saat** — tek bir saat girilir, tüm günler o saatte kapanır (eski davranış). **📅 Güne Göre** — Pazartesi'den Pazar'a her gün için ayrı ayrı **aktif/pasif** tiki ve kendi **saat/dakika** seçimi yapılabilir (örn. hafta içi 17:00, hafta sonu kapatma pasif). Hangi mod seçiliyse durum satırı ("⏻ Kapatma: 17:00 — aktif" gibi) ona göre güncellenir; Güne Göre modunda o günün ayarı gösterilir.
+- **Ses Çıkış Kanalı**: Bilgisayarda birden fazla ses çıkışı varsa (örn. HDMI + kulaklık) hangi kanaldan ses çıkacağını buradan seçip **🔄 Tara** ile cihazları yeniden tarayabilir, seçiminizi **💾 Kaydet** ile kalıcı hâle getirebilirsiniz.
+
+### 📋 Manifest Sekmesi
+
+Teknik bilgiler, versiyon geçmişi ve sistem mimarisi burada bulunur. Geliştirici referans belgesidir, normal kullanımda gerek yoktur.
+
+---
+
+## 📅 Zil Planları (A / B / C)
+
+Sistem üç farklı zil planını destekler. Aynı gün için iki farklı program uygulamak gerektiğinde (örn. sınav günü) kullanılır.
+
+| Plan | Ne Zaman Kullanılır? |
+|------|----------------------|
+| **Plan A** | Normal okul günü (varsayılan) |
+| **Plan B** | Kısa gün, sınav günü veya özel program |
+| **Plan C** | Blok ders programı (dersler çiftler/gruplar hâlinde birleştirilir, aralarında zil çalmaz) |
+
+Her gün için hangi planın aktif olduğunu **Zil & Okul** sekmesinden seçebilirsiniz. Değişiklik anında kaydedilir.
+
+Bir gün için hangi planın uygulanacağı tek bir kurala göre belirlenir: **elle seçim › Plan C tarih listesi › Plan B tarih listesi › günün kayıtlı planı**. Plan B ve C haftalık takvimleri aynı güne denk gelirse Plan C önceliklidir.
+
+---
+
+## 🔉 Anfi (Amplifikatör) Kontrolü
+
+Sistem, anfiyi her zil çalmadan önce otomatik olarak açar ve zil bittikten sonra kapatır. Bu sayede anfi sürekli açık kalmaz, enerji tasarrufu sağlanır.
+
+**İlk Kurulum:**
+1. Arduino'yu USB ile bilgisayara bağlayın.
+2. Zil programını başlatın.
+3. **Anfi** sekmesine gidin → **🔌 Yeni Port** butonuna tıklayın.
+4. Açılan pencerede Arduino'yu seçin ve **Bağlan**'a tıklayın.
+5. "Arduino otomatik bağlandı" mesajı görünürse başarılı.
+
+**Sonraki Açılışlarda:** Arduino bağlı olduğu sürece sistem otomatik olarak tanır ve bağlanır, el ile bir şey yapmanıza gerek yoktur.
+
+### 🛡️ Güvenlik Zaman Aşımı (Arduino)
+
+Program çökerse, Chrome donarsa veya USB bağlantısı kesilirse anfi açık kalmasın diye `Arduino/anfi.ino` içinde bir güvenlik zaman aşımı vardır:
+
+- Anfi **bilgisayar komutuyla** açıldıysa ve **2 dakika** boyunca bilgisayardan hiç komut gelmezse röle kendiliğinden kapanır (`UYARI:HOST_ZAMAN_ASIMI`). Program bağlıyken her 10 sn'de bir durum sorgusu gönderdiği için bu süre normalde dolmaz. Süre `HOST_ZAMAN_ASIMI_MS` sabitiyle değiştirilebilir.
+- Anfi **butonla** (veya bilgisayar sessizken RF kumandayla) elle açıldıysa zaman aşımı uygulanmaz.
+- Arduino bağlı değilken "Anfi Aç" denirse arayüz sahte "açık" göstermez; aktivite günlüğüne uyarı yazılır.
+- RF kumanda yedeğinin bilgisayar kapalıyken de çalışması için Arduino'yu ayrı bir USB adaptörle besleyin.
+
+---
+
+## 🧩 Arduino Nedir ve Nasıl Kullanılır?
+
+Arduino Uno, zil programı (Chrome) ile gerçek dünya arasındaki köprüdür. Ses, bilgisayarın ses çıkışından anfiye gider; Arduino ses üretmez, yalnızca üç iş yapar:
+
+1. **Anfiyi açıp kapatır:** Röleyi sürerek anfinin 220V beslemesini anahtarlar. Program zilden önce anfiyi açar, ses bitince kapatır.
+2. **RF kumandayı dinler:** 433 MHz alıcıdan gelen tuş sinyallerini bilgisayara iletir (Marş, Zil, Anfi, Dur).
+3. **Elle kullanım ve güvenlik:** Fiziksel buton ve iki renkli LED ile anfi elle açılıp kapatılır; program sustuğunda anfi kendiliğinden kapanır (bkz. Güvenlik Zaman Aşımı).
+
+### Parçalar ve Görevleri
+
+| Parça | Pin | Görevi |
+|-------|-----|--------|
+| Röle modülü | D7 (IN) | Anfinin 220V hattını açar/kapatır. Aktif-LOW: pin LOW → anfi **AÇIK**, HIGH → **KAPALI** |
+| Buton | D4 | Elle anfi aç/kapat (diğer ucu GND) |
+| İki renkli LED | D11 (yeşil), D12 (kırmızı) | Yeşil = anfi açık, kırmızı = anfi kapalı |
+| RF alıcı (4 kanal) | D2, D3, D5, D6 | CH1 Marş, CH2 Zil, CH3 Anfi, CH4 Dur |
+| USB kablo | — | Bilgisayarla seri haberleşme (9600 baud) ve besleme |
+
+### Buton ve LED Nasıl Çalışır?
+
+- Kart açıldığında **kırmızı LED** yanar, röle kapalıdır (anfi kapalı).
+- Butona bir kez basınca anfi değişir: kapalıysa açılır (**yeşil**), açıksa kapanır (**kırmızı**).
+- **Elle açılan anfi otomatik kapanmaz;** kapatmayı unutmayın. Program komutuyla açılan anfi ise program 2 dakika sessiz kalırsa kendiliğinden kapanır.
+
+### Bilgisayarla Haberleşme
+
+Normal kullanımda bunları görmezsiniz; sorun gidermek veya test etmek için gerekir. Bağlantı USB seri port üzerinden, 9600 baud ile yapılır.
+
+**Komutlar (bilgisayar → Arduino):**
+
+| Komut | Ne yapar | Cevap |
+|-------|----------|-------|
+| `ANFI_AC` | Anfiyi açar (röle çeker) | `OK:ANFI_ACILDI` |
+| `ANFI_KAP` | Anfiyi kapatır | `OK:ANFI_KAPATILDI` |
+| `DURUM` | Durumu sorar (program bağlıyken 10 sn'de bir gönderir) | `DURUM:ACIK` veya `DURUM:KAPALI` |
+| başka bir şey | — | `HATA:BILINMEYEN_KOMUT:<komut>` |
+
+**Mesajlar (Arduino → bilgisayar):**
+
+| Mesaj | Anlamı |
+|-------|--------|
+| `ZIL_ARDUINO_HAZIR` | Kart açıldı veya yeniden başladı |
+| `OK:ANFI_ACILDI` / `OK:ANFI_KAPATILDI` | Anfi durumu değişti (komutla, butonla veya zaman aşımıyla) |
+| `DURUM:ACIK` / `DURUM:KAPALI` | `DURUM` sorusunun cevabı |
+| `MARS:TETIKLEME` | Kumanda CH1 — İstiklal Marşı |
+| `ZIL:TETIKLEME` | Kumanda CH2 — zil çal |
+| `ANFI:TOGGLE` | Kumanda CH3 — anfi aç/kapat (program canlıyken) |
+| `DUR:TETIKLEME` | Kumanda CH4 — hepsini durdur |
+| `BUTON:MANUEL_TETIKLEME` | Fiziksel butona basıldı |
+| `ANFI:YEREL_TOGGLE` | CH3, bilgisayar sessizken anfiyi Arduino'da değiştirdi |
+| `UYARI:HOST_ZAMAN_ASIMI` | 2 dakika komut gelmediği için anfi otomatik kapatıldı |
+
+### İlk Kullanım ve Test
+
+1. Devreyi aşağıdaki şemaya göre kurun. **İlk testi 220V tarafını bağlamadan yapın;** röle tıkını duymanız yeterlidir.
+2. Kodu karta yükleyin (Kurulum bölümü, 3. adım).
+3. Arduino IDE'de **Araçlar → Seri Monitör**'ü açın (9600 baud, satır sonu "Yeni satır") ve şunları deneyin:
+   - Kart açılınca `ZIL_ARDUINO_HAZIR` görünmeli.
+   - `DURUM` yazın → `DURUM:KAPALI`.
+   - `ANFI_AC` yazın → röle tıklar, LED yeşil olur, `OK:ANFI_ACILDI` görünür. `ANFI_KAP` ile kapatın (komutla açılan anfi 2 dakika sonra kendiliğinden kapanır).
+   - Butona basın → LED değişir, `BUTON:MANUEL_TETIKLEME` görünür.
+   - Kumanda tuşlarına basın → ilgili mesajlar görünür.
+4. Seri Monitörü **kapatın** (Seri Monitör ve Chrome aynı anda porta bağlanamaz), sonra zil programında **Anfi** sekmesinden **Yeni Port** ile bağlanın.
+
+> 💡 Uno, seri port her açıldığında yeniden başlar; bu sırada röle kapalıya döner (anfi kısa süre kapanır). Bilgisayar kapalıyken RF kumanda yedeğinin çalışması için Arduino'yu ayrı bir USB adaptörle besleyin. Zaman aşımı süresi gibi ayarları değiştirmek için `Arduino/anfi.ino` dosyasını IDE'de düzenleyip kartı yeniden yükleyin.
+
+---
+
+## 🔌 Arduino Bağlantı Şeması
+
+![Arduino devre bağlantı şeması](Arduino/devre-semasi.svg)
+
+*Şema: `Arduino/devre-semasi.svg`. Aşağıdaki metin şeması aynı bağlantıların kısa listesidir.*
+
+```
+Arduino Uno
+├── Pin 7  ──── Röle IN (anfi 220V kontrolü)
+├── Pin 11 ──[100Ω]──── Yeşil LED + (anfi açık göstergesi)
+├── Pin 12 ──[150Ω]──── Kırmızı LED + (anfi kapalı göstergesi)
+├── Pin 4  ──── Buton (diğer ucu GND — manuel anfi aç/kapat)
+│
+├── Pin 2  ──── RF Alıcı CH1-A (İstiklâl Marşı)
+├── Pin 3  ──── RF Alıcı CH2-A (Zil çal)
+├── Pin 5  ──── RF Alıcı CH3-A (Anfi aç/kapat)
+├── Pin 6  ──── RF Alıcı CH4-A (Her şeyi durdur)
+│
+├── 5V     ──── Röle VCC
+│               RF Alıcı VCC (5V veya 12V — modele göre)
+└── GND    ──── Röle GND, LED(-), Buton, RF Alıcı tüm CH-B(COM), LED ortak katot
+```
+
+**Röle Bağlantısı (Anfi Tarafı):**
+```
+220V Şebeke ──[SİGORTA]──── Röle COM
+                             Röle NO ──── Anfi 220V girişi
+                             (Anfi açıldığında NO-COM kısa devre olur)
+```
+
+> ⚠️ 220V ile çalışırken mutlaka **yetkili bir elektrikçiye** yaptırın!
+
+---
+
+## 📡 RF Uzaktan Kumanda (Fiziksel)
+
+433 MHz 4 kanallı RF kumanda ile sınıf dışından sistemi kontrol edebilirsiniz.
+
+| Kumanda Tuşu | Fonksiyon |
+|--------------|-----------|
+| **A (CH1)** | 🎖 İstiklâl Marşı çal |
+| **B (CH2)** | 🔔 Zil çal |
+| **C (CH3)** | 🔉 Anfi aç / kapat (toggle) |
+| **D (CH4)** | ⏹ Her şeyi durdur |
+
+**C (CH3) yerel yedek:** Zil programı çalışırken C tuşu yalnızca programa haber verir, anfiyi program açıp kapatır. Bilgisayardan son **25 saniyedir** komut gelmiyorsa (program kapalı/çökmüş) Arduino anfiyi doğrudan kendisi açıp kapatır (`ANFI:YEREL_TOGGLE`). A, B ve D tuşları ses gerektirdiği için bilgisayara bağlı kalır.
+
+**Kumanda Menzili:** Açık alanda ~30–50 metre, duvarlar arasında ~10–20 metre.
+
+**RF Alıcı Bağlantısı:**
+- Her kanalın **A (NO)** çıkışı → ilgili Arduino pinine (2, 3, 5, 6)
+- Her kanalın **B (COM)** çıkışı → Arduino GND
+- Dahili pull-up direnci kullanıldığı için harici direnç **gerekmez**
+
+> 💡 Bu RF kumanda, aşağıdaki **telefon kumandasından farklı, fiziksel bir
+> donanımdır** — Wi-Fi/ağ gerektirmez, sadece kısa menzilde çalışır. İkisi
+> birbirinin yerine geçmez, ihtiyaca göre birlikte kullanılabilir.
+
+---
+
+## 📱 Telefondan / Mobil Cihazdan Bağlanma (Uzaktan Kumanda)
+
+Öğretmen veya idareci, sınıf dışında/koridorda/bahçedeyken **cep
+telefonunun tarayıcısından** zili, marşı veya saygı duruşunu tetikleyebilir
+— ayrı bir uygulama kurmaya gerek yoktur, herhangi bir tarayıcı yeterlidir.
+
+### Nasıl çalışır — büyük resim
+
+```
+[Cep Telefonu — herhangi bir tarayıcı]
+         │  Wi-Fi (aynı yerel ağ)
+         ▼
+http://<bilgisayarın-yerel-IP'si>:<port>/kumanda
+         │
+         ▼
+[Python sunucu — zunucu/handler.py]
+   ├── PIN doğru mu? → oturum çerezi ver
+   ├── Butona basılan komutu bellekte tut (POST /api/remote)
+         │
+         ▼  (okul bilgisayarındaki Chrome sekmesi her 1 saniyede bir sorar)
+[zil.html — okul bilgisayarındaki Chrome, GET /api/remote-poll]
+         │
+         ▼
+executeRemoteCmd(cmd) → manualPlay() / stopAll()
+         │
+         ▼
+Ses gerçekten okul bilgisayarından, anfi üzerinden çalar
+```
+
+**Önemli:** Telefon **doğrudan ses çalmaz**. Telefon yalnızca okul
+bilgisayarına "şu sesi çal" komutunu gönderir; sesi asıl çalan ve anfiyi
+tetikleyen her zaman okul bilgisayarındaki `zil.html` sekmesidir. Bu yüzden:
+
+- Okul bilgisayarındaki program (Chrome sekmesi) **açık ve çalışır durumda
+  olmalıdır**. Program kapalıysa telefon üzerinden gönderilen komutun bir
+  etkisi olmaz.
+- Telefon sadece **aynı yerel ağda (aynı Wi-Fi)** olduğu sürece çalışır.
+  İnternet üzerinden, farklı bir ağdan (örn. mobil veri ile evden)
+  **bağlanılamaz** — port yönlendirme (port forwarding) yapılmadığı sürece
+  bu bir yerel ağ özelliğidir, genel internete açık değildir.
+- Sunucu `0.0.0.0` üzerinde dinlediği için ağdaki tüm cihazlardan
+  erişilebilir; yani `/kumanda` adresine bir başka bilgisayarın
+  tarayıcısından da girilebilir — özellik yalnızca telefona özgü değildir,
+  "ağdaki herhangi bir tarayıcıdan uzaktan kumanda" olarak düşünülmelidir.
+
+### Adım adım kullanım
+
+**1) Adresi ve PIN'i öğrenin**
+
+Program başlatıldığında (`zil-baslat.bat`), açılan siyah konsol penceresinde
+şu satırlar görünür:
+
+```
+[ZIL] Network : http://192.168.1.10:8765/zil.html
+[ZIL] Remote  : http://192.168.1.10:8765/kumanda
+[ZIL] Kumanda PIN : 384729  (kumanda-pin.json dosyasından değiştirilebilir)
+```
+
+- `192.168.1.10` ve `8765` sizin ağınıza ve o anki porta göre farklı olacaktır.
+- **PIN her açılışta aynıdır** (rastgele üretilip `kumanda-pin.json` dosyasına
+  kaydedilir); değiştirmek isterseniz bu dosyayı elle düzenleyebilirsiniz.
+- Konsol penceresi kapatılırsa bu bilgiyi tekrar görmek için programı yeniden
+  başlatmanız gerekir (veya `kumanda-pin.json` dosyasını doğrudan açarsınız).
+
+**2) Telefondan bağlanın**
+
+Telefonunuzun **okul Wi-Fi ağına bağlı olduğundan** emin olun, ardından
+tarayıcıdan (Chrome, Safari, hangisi olursa) `http://192.168.1.10:8765/kumanda`
+adresine gidin (kendi IP/port bilginizle).
+
+**3) PIN girin**
+
+Karşınıza koyu temalı, ortalanmış bir "🔒 Zil Kumanda — PIN Girin" ekranı
+gelir. 6 haneli PIN'i girip **Giriş**'e basın. PIN doğruysa oturum 24 saat
+boyunca hatırlanır — bu süre içinde aynı telefon/tarayıcıdan tekrar PIN
+girmenize gerek kalmaz. (Tarayıcı verileri temizlenirse veya 24 saat
+dolarsa PIN tekrar sorulur.)
+
+**4) Kumanda ekranını kullanın**
+
+Giriş başarılıysa 5 büyük dokunmatik buton görünür:
+
+| Buton | Etki |
+|---|---|
+| 🎖 **İstiklâl Marşı** | Okul bilgisayarında marşı çalmaya başlatır |
+| 🤲 **Saygı Duruşu 1dk** | 1 dakikalık saygı duruşu sesini çalar |
+| 🤲 **Saygı Duruşu 2dk** | 2 dakikalık saygı duruşu sesini çalar |
+| 🔔 **Zil Çal** | Manuel zil sesini çalar |
+| ⏹ **DURDUR** | O an çalan her şeyi anında durdurur |
+
+Sağ üstte **TR / EN** dil seçimi de vardır; seçim telefonda hatırlanır.
+Bir butona basıldığında ekranda kısaca "Gönderiliyor..." ardından
+"✅ ..." veya "❌ ..." durum mesajı görünür.
+
+**5) Okul bilgisayarında ne olur?**
+
+Komut, okul bilgisayarındaki `zil.html` sekmesine ulaştığında ekranın
+aktivite kaydına (log) 📡 simgesiyle birlikte "Kumanda: ..." şeklinde bir
+satır eklenir; ilgili ses normal şekilde anfi üzerinden çalar. Program henüz
+açılış aşamasındaysa ve ses dosyaları tam yüklenmediyse, gelen komut
+kaybolmaz — ses yüklenene kadar beklemeye alınır ve yüklenir yüklenmez
+çalınır.
+
+### Aynı anda birden fazla kişi kullanabilir mi?
+
+Evet — sistemde ayrı kullanıcı hesapları yoktur, tek bir PIN vardır. PIN'i
+bilen (veya tarayıcısında oturumu açık kalan) herkes kumanda sayfasını
+kullanabilir. Bu, birden fazla idareci/öğretmenin aynı PIN ile farklı
+telefonlardan bağlanabileceği anlamına gelir; aynı zamanda PIN'in
+paylaşılmaması gereken bir "ortak şifre" gibi davranması gerektiği anlamına
+da gelir.
+
+### Güvenlik notu
+
+Sunucu kodundaki geliştirici notuna göre, bu özelliğin **önceki bir
+sürümünde** `/kumanda` sayfasına ağdaki **herkes şifresiz** erişebiliyordu.
+PIN + oturum çerezi katmanı bunu kapatmak için sonradan eklendi. Güncel
+sürümde doğru PIN girilmeden ne kumanda butonları görünür ne de
+`/api/remote` komutu sunucu tarafından kabul edilir. Okulun Wi-Fi ağına
+giren herkes teorik olarak `/kumanda` adresini deneyebileceğinden (adres
+gizli değildir, sadece PIN'lidir), PIN'i okul dışına yaymamak ve gerekirse
+`kumanda-pin.json` dosyasından periyodik olarak değiştirmek önerilir.
+
+### Sık karşılaşılan sorunlar (telefon kumandası)
+
+| Belirti | Olası Sebep / Çözüm |
+|---|---|
+| Telefon adrese hiç ulaşamıyor | Telefon farklı bir Wi-Fi ağında veya mobil veride olabilir; aynı ağa bağlanın. Okul bilgisayarında/ağında güvenlik duvarı port'u engelliyor olabilir. |
+| PIN'i bilmiyorum | Program konsol penceresinde (`[ZIL] Kumanda PIN : ...`) yazar; pencere kapandıysa `kumanda-pin.json` dosyasını açın. |
+| Butona basıyorum ama ses çalmıyor | Okul bilgisayarındaki `zil.html` sekmesinin açık ve çalışır durumda olduğundan emin olun — sesi telefon değil, o sekme çalar. Ayrıca bilgisayarda tarayıcı ses izninin bir kez tıklanarak etkinleştirilmiş olması gerekir. |
+| "❌ Bağlantı hatası" yazıyor | Sunucu (Python) kapanmış olabilir; okul bilgisayarında programın hâlâ açık olduğunu kontrol edin. |
+| 24 saat sonra PIN tekrar soruluyor | Bu normaldir — oturum çerezinin süresi (24 saat) dolmuştur, PIN'i tekrar girmeniz yeterlidir. |
+
+---
+
+## 🎵 Ses Dosyaları
+
+Tüm ses dosyaları `zilsesleri/` klasöründe bulunmalıdır. Sistem açılışta bu klasörü tarar ve dosyaları otomatik yükler.
+
+> 💡 **Varsayılan ses:** Tüm zil tipleri (Tenefüs, Öğrenci, Öğretmen, Toplanma) varsayılan olarak `zil.mp3` ile çalar. Özel dosya yüklemek **isteğe bağlıdır** — 📁 ile farklı bir MP3 seçtiğinizde o zil tipi kendi sesiyle çalar, diğerleri `zil.mp3` ile devam eder. Ayarlar panelinde varsayılan (zil.mp3) çalan tipler turuncu, özel dosyası olanlar yeşil gösterilir.
+
+| Dosya Adı | Açıklama | Kullanıldığı Yer |
+|-----------|----------|------------------|
+| `zil.mp3` | Genel zil | Manuel "🔔 Zil" butonu, RF kumanda |
+| `zil_tenefus.mp3` | Tenefüs/son zil sesi | Ders bitişi, gün sonu zili |
+| `zil_ogrenci.mp3` | Öğrenci girişi zili | Tenefüs sonu (öğrenci girişi) |
+| `zil_ogretmen.mp3` | Öğretmen girişi zili | Ders başlangıcı (öğretmen girişi) |
+| `zil_toplanma.mp3` | Sabah toplanma zili | Toplanma saati |
+| `IstiklalMarsi.mp3` | İstiklâl Marşı | Tören, RF-A tuşu |
+| `saygi1.mp3` | Saygı duruşu (1 dk) | Tören öncesi |
+| `saygi2.mp3` | Saygı duruşu (2 dk) | Tören öncesi |
+| `depremikaz.mp3` | Deprem ikaz tonu | Deprem tatbikatı |
+| `siren.mp3` | Tahliye sireni | Deprem tatbikatı |
+| `anons_tenefus.mp3` | Tenefüs çıkışı anonsu (isteğe bağlı — pakette yok) | Zil sonrası (Ses → Anons ayarı) |
+| `anons_toplanma.mp3` | Toplanma anonsu | Zil sonrası (Ses → Anons ayarı) |
+| `anons_ogretmen.mp3` | Öğretmen girişi anonsu | Zil sonrası (Ses → Anons ayarı) |
+| `anons_ogrenci.mp3` | Öğrenci girişi anonsu | Zil sonrası (Ses → Anons ayarı) |
+| `anons_gunsonu.mp3` | Son zil / gün sonu anonsu | Zil sonrası (Ses → Anons ayarı) |
+
+**Kendi Ses Dosyanızı Eklemek:**
+- MP3 formatında olmalı.
+- **Yöntem 1 (önerilen):** Ses sekmesinde ilgili kutucuğun 📁 butonuna tıklayıp dosyayı seçin — sistem otomatik olarak doğru adla (örn. `zil_ogrenci.mp3`) `zilsesleri/` klasörüne kalıcı kaydeder, ek bir işlem gerekmez.
+- **Yöntem 2 (manuel):** Dosyayı doğru adla `zilsesleri/` klasörüne kendiniz kopyalayın, ardından programı yeniden başlatın (veya sayfayı F5 ile yenileyin). Dosya adı bu sayfadaki tabloyla **birebir eşleşmelidir** (`zil_ogrenci.mp3` gibi), aksi halde sistem dosyayı tanıyamaz.
+
+---
+
+## 🚨 Deprem Tatbikatı Modu
+
+Ana ekrandaki **⚠️ İkaz** ve **🚨 Siren** butonları deprem tatbikatı için kullanılır.
+
+- **İkaz**: `depremikaz.mp3` dosyasını tekrar tekrar çalar (tatbikat başladı sinyali).
+- **Siren (Tahliye)**: `siren.mp3` dosyasını çalar (tahliye başladı sinyali).
+- Her iki mod için çalma süresi ve tekrar sayısı arayüzden ayarlanabilir.
+- **⏹ Durdur** butonu ile tatbikat anında sonlandırılır.
+
+---
+
+## 🕌 Ezan Entegrasyonu
+
+- **Zil & Okul** sekmesinden ezan özelliğini etkinleştirin.
+- İlçenizi seçin — Diyanet İşleri Başkanlığı API'sinden günlük vakit bilgisi otomatik alınır.
+- Ezan vakitlerinde zil çalmaz. Ezan süresi dolunca normal programa devam eder.
+- İnternet bağlantısı yoksa bu özellik devre dışı kalır, program normal çalışmaya devam eder.
+
+---
+
+## ❓ Sık Sorulan Sorular
+
+**S: Programı her gün manuel başlatmak zorunda mıyım?**
+C: Windows Görev Zamanlayıcısı ile `zil-baslat.bat` dosyasını her gün sabah belirli bir saatte otomatik başlatabilirsiniz. Görev Zamanlayıcısı → Görev Oluştur → Tetikleyici: Her gün saat 07:30 → Eylem: `zil-baslat.bat`.
+
+**S: Zil saatlerini değiştirdim ama etki etmedi?**
+C: **Kaydet** butonuna bastığınızdan emin olun. Kaydetmeden sekmeden ayrılırsanız değişiklikler kaybolur.
+
+**S: Arduino bağlı ama anfi çalışmıyor?**
+C: Anfi sekmesine gidin, bağlantı durumunu kontrol edin. "Bağlı değil" yazıyorsa **🔌 Yeni Port** butonuyla tekrar bağlanın.
+
+**S: Chrome'u kapattım ama kendiliğinden yeniden açıldı?**
+C: Bu Chrome bekçisidir (bkz. Programı Başlatma). Programı kapatmak için arayüzdeki **Sistemi Kapat** düğmesini kullanın; Alt+F4 ile kapatılan Chrome yaklaşık 90 saniye içinde geri açılır.
+
+**S: Tarayıcı profili silindi, ayarlarım gitti mi?**
+C: Hayır. Tüm ayarlar `zil-ayarlar.json` dosyasında da tutulur ve program açılışta buradan geri yükler. Dosya bozulursa `yedek/` klasöründeki en yeni günlük kopyayı `zil-ayarlar.json` adıyla yerine koyun.
+
+**S: Ses çıkmıyor?**
+C: (1) Bilgisayar sesinin açık olduğundan emin olun. (2) Ses sekmesinde doğru ses kanalının seçili olduğunu kontrol edin. (3) Arayüzde herhangi bir yere tıklayın (tarayıcı ses iznini etkinleştirmek için bir kez tıklama gerektirir).
+
+**S: "Python bulunamadı" hatası alıyorum?**
+C: Python kurulu değil veya PATH'e eklenmemiş. Python'u [python.org](https://www.python.org/downloads/)'dan indirin, kurulum sırasında **"Add Python to PATH"** seçeneğini işaretleyin.
+
+**S: Chrome açılıyor ama sayfa gelmiyor?**
+C: Python sunucusunun başlaması birkaç saniye alır. 15 saniye bekleyin. Hâlâ açılmıyorsa BAT penceresinde hata mesajı var mı kontrol edin.
+
+**S: Ağdaki başka bir bilgisayardan veya telefondan kumanda edebilir miyim?**
+C: Evet. `http://[sunucu-ip]:[port]/kumanda` adresine gidin (örn. `http://192.168.1.10:8765/kumanda`) ve konsol penceresinde yazan 6 haneli PIN'i girin. Bu, telefon dahil aynı Wi-Fi ağındaki herhangi bir cihazın tarayıcısından çalışır. Ayrıntılı kullanım, adres/PIN'i nereden bulacağınız ve olası sorunlar için bkz. [📱 Telefondan / Mobil Cihazdan Bağlanma](#-telefondan--mobil-cihazdan-bağlanma-uzaktan-kumanda).
+
+**S: Tenefüs, öğrenci ve öğretmen zilleri için ayrı ses tanımladım ama hâlâ eski zil çalıyor?**
+C: Dosya adının tabloyla birebir eşleştiğinden emin olun (`zil_ogrenci.mp3`, `zil_ogretmen.mp3`, `zil_tenefus.mp3`, `zil_toplanma.mp3`). Ses sekmesinden 📁 ile yüklediyseniz otomatik kaydedilir; klasöre elle kopyaladıysanız sayfayı F5 ile yenilemeniz gerekir.
+
+**S: Hakkında panelindeki telefon numarasına tıklayınca ne oluyor?**
+C: WhatsApp sohbeti açılır (bilgisayarda WhatsApp masaüstü uygulaması kuruluysa onu, değilse WhatsApp Web'i açar). Sadece numarayı kopyalamak isterseniz yanındaki 📋 butonunu kullanın.
+
+---
+
+## 🔧 Sorun Giderme
+
+### Siyah Konsol Ekranı Açılıp Kapanıyor
+
+`zil-baslat.bat` dosyasına sağ tıklayın → **Yönetici Olarak Çalıştır**. Firewall kuralı ekleme yetkisi gerekiyor.
+
+### "Port Bulunamadı" veya Sunucu 15 Saniyede Başlamadı
+
+- Python kurulu mu? (`python --version` komutuyla kontrol edin)
+- `zunucu/sunucu.py` dosyası mevcut mu?
+- Antivirüs yazılımı Python'u engelliyor olabilir. Python.exe için istisna tanımlayın.
+
+### COM Port Otomatik Bağlanmıyor
+
+1. Arduino'nun USB kablosunun takılı olduğundan emin olun.
+2. Anfi sekmesine gidin → **🔌 Yeni Port** butonuna tıklayın → listeden Arduino'yu seçin.
+3. Arduino sürücüsü kurulu olmayabilir. Arduino IDE'yi kurmak sürücüleri de yükler.
+4. **USB bağlantı sorunları için:** `arduino-usb-fix.bat` dosyasını sağ tıklayıp **Yönetici olarak çalıştır** ile bir kez çalıştırın. Windows'un USB güç yönetimini devre dışı bırakır — bilgisayar artık Arduino'yu uyutmaz. Sorun tekrarlarsa Arduino'yu çıkarıp yeniden takın; program otomatik olarak yeniden bağlanır.
+
+### Kumandadan Ses Çalmıyor
+
+- Program açıldıktan sonra **en az bir kez arayüze tıklayın**. Chrome güvenlik politikası gereği ilk tıklamaya kadar ses çalmaz.
+- Ses dosyaları yüklü mü? Ses sekmesinde kontrol edin.
+
+### Neden Çalmadığını Bulma (Log)
+
+Sunucu çıktısı program klasöründeki `zil-sunucu.log` dosyasına da yazılır (1 MB'a ulaşınca döner, 3 eski dosya saklanır). Chrome'un yeniden başlatılması, ayar kaydı hataları veya sistem kapatma komutunun çalışmaması gibi durumların nedenini buradan görebilirsiniz.
+
+### Zil Çalmıyor
+
+- Bilgisayar saatinin doğru olduğundan emin olun.
+- Doğru gün planının seçili olduğunu kontrol edin (Plan A/B/C).
+- O gün için ilgili zil satırında onay kutucuğunun işaretli olduğuna bakın.
+- Ses sekmesinden ses dosyasının yüklü olduğunu doğrulayın.
+
+---
+
+## 🆕 Sürüm Notları
+
+**8 Ekim 2026**
+- **Ayar yedeği genişletildi:** Tüm `zil*` ayarları (planlar, takvimler, sessiz mod, ezan, anfi, MP3 matrisi) sunucuda `zil-ayarlar.json` dosyasına da yazılır; günlük kopya `yedek/` klasörüne alınır (14 gün). Açılışta sunucuda eksik olan anahtarlar tamamlanır. Hacimli `zilCalmaGecmisi` ve `zilMp3ZilQueue` hariçtir. (7 Ekim'deki "yalnızca 4 ayar" notunun yerini alır.)
+- **Chrome bekçisi (`zunucu/watchdog.py`):** Sayfa ~5 sn'de bir `/api/heartbeat` çağırır; 90 sn kesilirse kiosk Chrome yeniden açılır (saatte en fazla 5). `/api/exit` ve `/api/shutdown` bekçiyi kapatır; `ZIL_WATCHDOG=0` ile devre dışı bırakılır.
+- **Zamanlayıcı:** `zil-baslat.bat`, Chrome'un arka planda/örtülüyken zamanlayıcıları yavaşlatmasını engelleyen bayraklarla açar.
+- **Arduino (`Arduino/anfi.ino`):** Bilgisayar komutuyla açılan anfi için 2 dakikalık güvenlik zaman aşımı; bilgisayar sessizken RF CH3 ile yerel anfi aç/kapat; açılışta rölenin kısa süre tetiklenmesi engellendi. Firmware artık pakette `Arduino/` klasöründedir; kartı yeniden yüklemek gerekir.
+- **Anfi uyarısı:** Arduino bağlı değilken "Anfi Aç" artık sahte "açık" göstermez; aktivite günlüğüne uyarı düşer.
+- **Anons:** Pakette olmayan `anons_tenefus.mp3` varsayılan olmaktan çıkarıldı (tenefüste varsayılan anons yok; dosyayı eklerseniz Ses sekmesinden seçin).
+- **Anneler Günü:** Tarih seçicideki hızlı buton Mayıs'ın 2. Pazarına gider; 5 Mayıs'ta yanlışlıkla tema görünmez.
+- **Sunucu günlüğü:** Çıktı `zil-sunucu.log` dosyasına da yazılır (1 MB × 3 dosya).
+- **Sistem kapatma:** `/api/shutdown` komutu başarısız olursa sunucu artık kapatılmaz (Windows dışı için yedek dal eklendi).
+- **i18n:** `verify_i18n.py` gömülü yedek sözlüklerin dil dosyalarıyla aynı olduğunu da denetler; `python3 verify_i18n.py --yaz` yeniden üretir.
+
+**7 Ekim 2026**
+- **Kaçırılan zillerin geç çalınması sınırlandı:** Bilgisayar uykudan dönerse veya program uzun süre donarsa, geçmişe dönük zil tarama penceresi 30 dakikadan **3 dakikaya** indirildi (`MAX_CATCHUP_MINS`). Bundan eski zil artık geç çalınmaz; kilitlenir ve ekranda "zil kaçırıldı" uyarısı + günlük kaydı düşer. Birden fazla zil birikmişse yalnızca en son olanı çalar, öncekiler uyarıyla atlanır (art arda üst üste binmez).
+- **Chrome kapatma düzeltildi:** Kiosk Chrome profili `chrome-profil/` klasörüne taşındığından, `zil-baslat.bat` ve `/api/exit` içindeki `wmic ... ZilSistemi` eşleşmesi Chrome'u artık bulamıyordu (yeniden başlatmada eski pencere kapanmıyor, çıkışta Chrome açık kalıyordu). Eşleşme artık Chrome'un `--user-data-dir` yoluna göre PowerShell ile yapılıyor; `wmic` (yeni Windows 11 sürümlerinde yok) kullanılmıyor.
+- **Python sürüm kontrolü:** `zil-baslat.bat` artık Python 3.10+ olup olmadığını denetler ve açık bir hata gösterir; `sunucu.py` de eski Python'da anlaşılmaz bir hata yerine açık mesaj verip pencereyi açık tutar.
+- **Zamanlayıcı hataları artık görünür:** Zil güvenlik katmanlarındaki (Katman 1/2/3) ve ana döngüdeki sessiz `catch` blokları hatayı konsola ve etkinlik günlüğüne yazar. Katman 3 (geri sayım doğrulama), eski bir mantık kopyası yerine `nextBellEvent` kullanacak şekilde sadeleştirildi.
+- **Ezan verisi (hata düzeltmesi):** Sunucu yanıtı `times`/`source` alanlarıyla dönüyordu ama arayüz `vakitler`/`kaynak` bekliyordu; bu yüzden sunucu üzerinden ezan vakti alma başarısız sayılıyordu. Arayüz artık iki adı da kabul eder. Sayfadan çekilen saatler için makul aralık doğrulaması eklendi.
+- **Anons ayarı (hata düzeltmesi):** Arayüzdeki varsayılan anons anahtarları eski adlarda (`ogretmen`…) kalmıştı; sunucudan yükleme tamamlanana kadar anonslar çalmıyordu. Anahtarlar `teacher/student/assembly/lastBell/break` olarak eşitlendi.
+- **Dayanıklılık:** Zil sesi/anons ayarı ve kara liste yazmaları atomik ve kilitli yapıldı; ses yükleme geçici dosyaya yazıp yerine koyar; istek gövdesi boyutu okunmadan sınırlandı; `restore-from-temp` artık tam ad eşleşmesini öncelikler ve `.origin` dosyalarını aday saymaz; güvenlik duvarı kuralı her açılışta birikmek yerine yenilenir; NTP uyarı eşiği 30 sn → 10 sn ve NTP kesirli saniyeyi kullanır.
+- **Dil:** Günlük/onay iletilerindeki sabit Türkçe metinler (ezan çakışma mesajı, kumanda durdur, sıfırlama onayları, ses izni vb.) dil dosyalarına taşındı; gömülü yedek sözlükler dil dosyalarıyla yeniden eşitlendi. Dini bayram tablosu 2026–2030'u kapsar; yıl tablodan çıkarsa program uyarı verir.
+- **Doküman düzeltmesi:** Sunucu tarafı yedek, planlama (Plan A/B/C seçimi) dahil 4 ayarı değil, yalnızca haftalık program (satır tikleri, hafta sonu tikleri, elle düzenlemeler) ve okul bilgisini yedekler; diğer ayarlar tarayıcı profilinde (`chrome-profil/`) tutulur.
+
+**6 Ekim 2026**
+- **Zil motoru ve plan sistemi baştan düzenlendi (denetim):** Günün tüm zilleri tek bir olay listesinden (`listBellEvents`) üretilir; çalma, kilitleme, "Sonraki Zil" ve tablo aynı kuralı kullanır. Plan seçimi tek bir çözümleyiciden (`_planOfDay`) gelir: bugün için öncelik **elle seçim › Plan C tarih listesi › Plan B tarih listesi › günün kayıtlı planı**. Plan B/C haftalık takvimleri çakışırsa C önceliklidir; tik kalkınca diğer takvime ya da Plan A'ya dönülür.
+- **Zilin çalıp çalmamasını etkileyen düzeltmeler:**
+  - Duraklatma / sessiz mod artık 1. ders öğretmen zilini bütün gün kilitlemez; kilit zil olayı bazlıdır ve yalnızca zamanı gelmiş zili tutar.
+  - Saat veya ayar değişince geçmiş zillerin art arda çalması önlendi. Çalma penceresi içindeki zil serbest kalır; öğretmen zili penceresi 3 dk ile sınırlıdır (7 Ekim 2026'da 30 dk'dan düşürüldü).
+  - Açılışta Plan B/C gününün Plan A saatleriyle çalması düzeltildi; program, plan/takvim/tören ayarları yüklendikten sonra tek seferde kurulur.
+  - Plan B/C tarih listeleri artık gerçekten etkilidir; takvim kontrolü Plan C'yi de tanır.
+  - Ders satırındaki **"Öğretmen girişi"** tiki artık o zili gerçekten yönetir.
+  - Günün son dersinde çift zil çalmaz: tek bir "son zil" çalar ve tik, son dersin "Ders Bitti" tikidir.
+  - Deprem alarmı çalarken planlı zil çalmaz (atlanır, günlüğe yazılır, uyarı gösterilir).
+  - Plan B "öğretmen erken" ayarı artık günün planına göre okunur.
+- **Ayar ve durum çelişkileri giderildi:**
+  - Plan A "Uygula" her günü kendi planıyla kurar, başka günün planını ezmez; `saveAll` günün planını kalıcı yazmaz.
+  - Plan C satır tikleri `c_` önekiyle tutulur, Plan A/B ile karışmaz.
+  - Ders sayısının zorla 10'a yükseltilmesi yalnızca eski sürüm kayıtlarında bir kez yapılır.
+  - **Elle düzenlenen saatler kaydedilir ve yeniden açılışta korunur;** ders ayarları değişirse düzenleme düşer.
+  - Cuma tören kuralı tek yerden (`_ceremonyCut`) uygulanır; satır tiklerine dokunulmaz, mod kapanınca tikler aynen kalır.
+- **Anfi ve ses:**
+  - **Anfi Öncesi Gecikme** artık uygulanır (varsayılan 3 sn, 0 geçerli bir değerdir). Anfi kapalıyken zil sesi bu süre kadar gecikir.
+  - MP3 zile iptal kancası eklendi; elle çalma (`manualPlay`) sonrası anfi her zaman kapanır.
+  - Öğrenci ve öğretmen zilinde tenefüs playlist'i durur.
+  - Ezan çakışmasında "Zil çalınamadı" bildirimi yalnızca zilin gerçekten çalmayacağı modlarda gösterilir; tablo uyarısı moda göre değişir; çakışan tenefüste playlist başlamaz.
+- **Küçük düzeltmeler:** sanal (test) saatte bilgisayar kapanmaz; ses yüklü mü kontrolü gerçek ses anahtarına bakar ve "ses bekleniyor" günlüğü tek satır yazılır; `|| 10` / `|| 30` kalıplarının sıfırı yutması giderildi; öğretmen-erken birim göçü düzeltildi; "Sabah Toplanma" dil dosyalarına alındı.
+- **Kod yapısı:** 14 kullanılmayan fonksiyon (109 satır) ve 3 kullanılmayan değişken silindi; script başına KOD HARİTASI eklendi; dosyadaki 360 fonksiyonun tamamının üstünde amaç yorumu vardır.
+- **Bilinçli kararlar:** Cuma tören sonrası gün sonu anonsu çalmaz (Cuma haftanın son okul günüdür). **Plan C'de Cuma tören modu yalnızca zilleri susturur, ders süresini kısaltmaz;** kısaltma Plan A ve B'de çalışmaya devam eder. Eski kayıtlardaki `bellOgrT` / `bellD1` tikleri artık okunmaz; kullanıcı tikleri `bellOgretmen` üzerindedir.
+
+**7 Eylül 2026**
+- **README: Telefon/Mobil Kumanda özelliği tam olarak belgelendi:** Önceden SSS bölümünde tek cümleyle geçen `/kumanda` sayfası artık ayrı, ayrıntılı bir bölümde anlatılıyor — adresin/PIN'in nereden bulunacağı, adım adım kullanım, güvenlik notu (önceki sürümde şifresiz erişim, sonradan eklenen PIN katmanı) ve sık karşılaşılan sorunlar dahil.
+
+**1 Eylül 2026 (5)**
+- **Otomatik Kapatma: güne göre ayrı saat + toplu saat modu:** Kapat/Kanal sekmesindeki Otomatik Kapatma artık iki modlu: **🔁 Toplu Saat** (eskisi gibi tek saat, tüm günlere uygulanır) ve **📅 Güne Göre** (Pazartesi'den Pazar'a her günün kendi aktif/pasif tiki ve kendi saat/dakika seçimi vardır — örn. hafta içi 17:00, hafta sonu kapatma kapalı). Kaydedilmiş eski tek-saat ayarınız otomatik olarak hafta içi günlere aktarılıp Güne Göre tablosuna da hazırlanır; Toplu Saat modunda kaldığınız sürece davranış değişmez.
+- **Ayar Yedekleme/Geri Yükleme kartı Okul/Dil sekmesine taşındı:** "📤 Tüm Ayarları Dışa Aktar" / "📥 Yedekten Geri Yükle" butonları artık Kapat/Kanal sekmesi yerine 🏫 Okul/Dil sekmesinin altında, dil seçiminin hemen altında yer alıyor.
+
+**1 Eylül 2026 (4)**
+- **"10. Ders Ders Bitti" gibi tekrarlı yazı düzeltildi:** Sağ üst köşedeki "Sonraki Zil" kutusu ve aktivite kaydı, ders bitiş zilini etiketlerken dersin adına ("10. Ders" — bu isim zaten "Ders" kelimesini içeriyor) ayrıca "Ders Bitti" ekliyordu; sonuç "10. Ders Ders Bitti" gibi kafa karıştırıcı bir tekrar oluyordu. Saatin/zilin kendisinde bir hata yoktu — 17:25, 10. dersin gerçekten bittiği saattir — sorun sadece metindeydi. Artık "10. Ders **Bitti**" şeklinde, tekrarsız gösteriliyor.
+
+**1 Eylül 2026 (3)**
+- **Sessiz Mod listesindeki yazılar büyütüldü:** tarih etiketleri ve alt bilgi (gün/hafta/ay · tarih) satırları okunamayacak kadar küçüktü (0.5rem); okunaklı boyutlara çıkarıldı.
+- **Resmi (millî) bayramların artık arifesi yok — bir gün önceki gün normal okul günü, zil çalar:** "Cumhuriyet Bayramı Arifesi" otomatik ekleme listesinden tamamen kaldırıldı. Arife/yarım gün kavramı Türkiye'de yalnızca dini bayramlara (Ramazan/Kurban) özgüdür; millî bayramların böyle bir arifesi yoktur.
+- **Ramazan/Kurban Bayramı arifesi artık gerçek bir "yarım gün":** önceden arife günü tamamen sessize alınıyordu (sabah dahil hiç zil çalmıyordu). Artık arife günü sabahtan öğlene (12:00) kadar okul normal işler, ziller normal çalar; öğleden sonra otomatik ziller susar. Bunun için sessiz mod listesine yeni bir kayıt türü eklendi ("Yarım Gün — Öğleden Sonra"), sadece saat 12:00'den sonra aktif olur. **Not:** Daha önce "🎉 Resmi Tatilleri Ekle" butonuna basılmış ve tarihler zaten kaydedilmişse, eski (tam gün sessiz) arife kayıtları otomatik güncellenmez — Sessiz Mod listesinden "🗑 Tümünü Sil" ile temizleyip butona tekrar basmanız, doğru (yarım gün) kayıtların yeniden oluşmasını sağlar.
+
+**1 Eylül 2026 (2)**
+- **Bazı simgelerin sürekli yanıp sönmesi (asıl sebep) giderildi:** Önceki düzeltme (aşağıdaki "1 Eylül 2026" kaydı) yalnızca DOM'a yazma anındaki gecikmeyi kapatmıştı; asıl sebep ayrıca üç eksik/uyumsuz SVG dosyasıydı. (1) `svg/` klasöründe **📤 (dışa aktar) ve 📥 (geri yükle)** simgelerinin dosyaları hiç yoktu — Kapat/Kanal panelindeki "Tüm Ayarları Dışa Aktar" ve "Yedekten Geri Yükle" butonları bundan etkileniyordu. (2) **🩺 (Sistem Sağlık Kontrolü)** simgesinin dosyası da eksikti — Manifest panelindeki başlık simgesi bu yüzden sürekli yanıp sönüyordu. (3) **⚠️ ve ℹ️** simgeleri için twemoji kütüphanesi kod adını "-fe0f" sonekiyle üretiyordu, ama diskteki dosyalar sonek olmadan adlandırılmış — bu iki simge de aynı sorunu yaşıyordu (uygulama genelinde birçok yerde kullanılıyorlar). Her üç durumda da eksik/uyumsuz dosya → tarayıcı 404 hatası → simge ham emoji karakterine geri dönüyor → arka plandaki gözlemci bunu fark edip yeniden SVG'ye çevirmeyi deniyor → aynı 404 → tekrar ham karaktere dönme... Bu döngü sonsuza kadar tekrarlanarak sürekli "yanıp sönme" görüntüsü veriyordu. Eksik üç SVG dosyası twemoji'nin kaynak deposundan eklendi, "-fe0f" sonek uyuşmazlığı koddan düzeltildi; ayrıca ileride benzer bir dosya eksikliği olursa aynı sonsuz döngü bir daha oluşmasın diye, başarısız olan bir simge bir daha hiç yeniden denenmeyecek şekilde bir güvenlik önlemi eklendi.
+- **Üst başlık ve Hakkında panelindeki tarih artık gerçekten sabit kalıyor:** Bu iki alandaki (`topbarDate`, `infoDate`) sürüm tarihi metni, saniyede bir çalışan saat/tarih güncelleme fonksiyonu tarafından her seferinde bilgisayarın **gerçek/simüle güncel tarihiyle** eziliyordu — bu yüzden elle "Eylül 2026" yazılsa bile ekranda hep sistemin o anki ayı görünüyor, "tarih hiç değişmemiş" gibi algılanıyordu. Artık bu iki alan canlı saatten bağımsız; yalnızca HTML içindeki sabit metin değiştirilerek güncellenir.
+
+**1 Eylül 2026**
+- **Manifest ve Ezan panellerinde simge yanıp sönmesi giderildi:** Bu iki panel, içeriğini oluştururken ham emoji karakterlerini doğrudan sayfaya yazıyordu; SVG simgeye dönüşüm ise arka planda 200ms gecikmeli bir gözlemci ile yapılıyordu. Bu yüzden panel her yenilendiğinde (sekmeye tıklandığında, "🔄 Yenile" butonuna basıldığında veya ezan vakitleri 30 dakikada bir otomatik güncellendiğinde) ham emoji bir an görünüp ardından SVG'ye dönüşüyor, bu da "yanıp sönme" etkisi yaratıyordu. Diğer sık güncellenen alanlarda (VU metre, durum satırı vb.) daha önce çözülmüş olan bu sorun artık Manifest ve Ezan panellerine de uygulandı — simgeler artık sayfaya yazılır yazılmaz, aynı anda SVG olarak görünüyor.
+
+**15 Ağustos 2026 (3)**
+- **Zil Planlama sayfası: Plan A / B / C artık sekmeli:** Önceden üç plan da aynı sayfada üst üste (Plan A, ardından Plan B ayarları+takvimi, ardından Plan C ayarları+takvimi) sıralı duruyordu ve sayfaya yeni giren biri üç ayrı planın var olduğunu hemen fark edemiyordu. Artık panelin üstünde **Ⓐ Plan A / Ⓑ Plan B / Ⓒ Plan C** sekmeleri var; bir sekmeye tıklayınca yalnızca o planın ayarları (ve varsa takvimi) gösteriliyor. Panel her açıldığında, o an gerçekten aktif olan plana ait sekme otomatik seçili geliyor. Planı seçme/uygulama mantığında (kart üzerindeki radyo düğmesi, "Uygula & Kaydet" butonları) herhangi bir değişiklik yok — yalnızca görünüm daha anlaşılır hâle getirildi.
+
+**15 Ağustos 2026 (2)**
+- **Ezan toleransı: tek "± dk" yerine ayrı "Önce / Sonra" dakika:** Ezan Vakitleri sekmesindeki tek tolerans kutusu kaldırıldı; artık ezandan **önceki** ve ezandan **sonraki** süre ayrı ayrı dakika olarak girilebiliyor. Varsayılan değer eskiden 5 dk idi (çok uzun bulunuyordu), artık her ikisi de **2 dk**.
+- **Manuel vakit düzeltmesi artık kalıcı:** Ezan Vakitleri sekmesinde bir namaz vaktini elle değiştirdiğinizde, sistem artık bir sonraki otomatik vakit çekiminde bu değeri **eski hâline geri döndürmüyor**. Düzeltme o gün için sabit kalıyor (✎ ile işaretleniyor), yalnızca dokunmadığınız diğer vakitler otomatik güncelleniyor. **↺ Bugünü Sıfırla** ile istenirse tekrar tam otomatiğe dönülebiliyor.
+- **Zil tablosundaki ezan çakışma uyarısı artık zil bazında:** Önceki sürümde bir satırdaki birden fazla zilden (örn. Tenefüs Çıkış + Öğrenci Zili) yalnızca ilk çakışan tespit ediliyor, diğerleri için ayrı bir uyarı üretilmiyordu. Artık her zil kendi saatiyle bağımsız kontrol ediliyor; aynı satırda birden fazla zil çakışıyorsa hepsi ayrı ayrı kırmızı uyarıyla gösteriliyor (öğrenci zili dahil).
+
+**15 Ağustos 2026**
+- **Dil seçimi hatası düzeltildi (Raspberry Pi / İngilizce işletim sistemi):** Program artık ilk açılışta **her zaman Türkçe** ile başlıyor. Önceden, kullanıcı hiç dil seçmemişse program bilgisayarın/tarayıcının işletim sistemi diline (`navigator.language`) bakıyordu; işletim sistemi İngilizce olan cihazlarda (örn. bazı Raspberry Pi kurulumları) bu yüzden program Türkçe'yi hiç göstermeden doğrudan İngilizce açılıyordu. Bu davranış tamamen kaldırıldı. Kullanıcının **elle seçtiği dil** hâlâ olduğu gibi hatırlanıyor — bilgisayar/program kapanıp yeniden açılsa bile son seçilen dilden devam ediyor; bu yalnızca "hiç seçim yapılmadıysa" durumundaki hatalı işletim-sistemi-diline-bakma davranışı düzeltildi.
+- **Zil tablosunda ezan çakışma uyarısı eklendi:** Ana ekrandaki Zil Programı tablosunda, Ezan modu aktifken bir satırdaki zil saati bir ezan vaktiyle (± tolerans) çakışıyorsa, artık o satırın **Açıklama** sütununda kırmızı renkli bir uyarı gösteriliyor (örn. *"Öğle Ezanı Saati. Ses Kapalı"*). Önceden bu çakışma yalnızca zil tam olarak çalma anında (toast bildirimiyle) görülebiliyordu; artık tablodan önceden de fark edilebiliyor. Yalnızca gerçekten çalacak olan (aktif/tikli) ziller için kontrol edilir — kapalı ziller uyarı üretmez.
+
+**1 Ağustos 2026**
+- **Kalıcı ayar kaybı sorunu giderildi:** Kiosk Chrome profili artık `%TEMP%` yerine program klasörünün içinde (`chrome-profil/`) tutuluyor — TEMP klasörünün bazı bilgisayarlarda periyodik olarak temizlenmesi yüzünden localStorage'daki (ve dolayısıyla tüm ayarların) sıfırlanması engellendi.
+- **Sunucu tarafı ayar yedeği eklendi:** Haftalık zil programı (satır tikleri, hafta sonu zil tikleri, elle düzenlemeler) ve okul bilgisi (7 Ekim 2026 notuna bakın) artık `zunucu/app_settings.py` aracılığıyla `zil-ayarlar.json` dosyasına da yazılıyor. Program her açılışta önce bu dosyayı okuyup localStorage'a geri yazıyor — tarayıcı profili tamamen silinse bile ayarlar kaybolmuyor. Yeni uç noktalar: `GET/POST /api/app-settings`.
+- Hafta sonu zil tikleri (Cumartesi/Pazar) varsayılan olarak pasif olduğu doğrulandı.
+- Manifest sayfasındaki statik "Last updated" satırı kaldırıldı (her seferinde elle güncellenmesi gerekiyordu, sürekli eskiyordu). Eksik/yanlış birkaç satır düzeltildi: `zil-start.bat` → `zil-baslat.bat`, yeni `/api/app-settings` uç noktaları ve `zilAccordionView` localStorage anahtarı eklendi.
+- Kullanılmayan, güncel olmayan kök dizindeki `en.json`/`tr.json` dosyaları kaldırıldı — uygulama zaten yalnızca `locales/en.json` ve `locales/tr.json` dosyalarını kullanıyor; eski dosyalar 385 eksik anahtarla kafa karıştırıcı bir kopyaydı.
+
+**1 Temmuz 2026**
+- **Plan C — Blok Dersler** tamamen yeniden tasarlandı. Eski "kesim noktası" mantığı yerine artık **grup tabanlı yapı** kullanılıyor: her grup Blok Ders veya Tekli Ders olarak tanımlanıyor, kaç ders birleştirileceği, süresi ve sonrasındaki ara (tenefüs/öğle) ayrı ayrı ayarlanabiliyor. Blok gruplarda dersler birleştirilir, aralarında zil çalmaz.
+- **↺ Reset butonu:** Sekme çubuğundaki `↺ Default` ve toolbar'daki `↺ Sıfırla` butonları kaldırıldı, ikisi **tek Reset butonuna** birleştirildi. Reset'e basınca haftanın tüm günleri Plan A'ya döner (önceden `_gunPlanlar` sıfırlanmıyordu, B/C planındaki günler A'ya dönmüyordu — düzeltildi).
+- **Arduino USB bağlantısı güçlendirildi:** `arduino-usb-fix.bat` eklendi (USB Selective Suspend kapatma). Web Serial API'de `port.forget()` desteği eklendi — Arduino fişi çekilip takılınca tarayıcı önbelleği temizlenir ve yeniden bağlanır. `beforeunload` olayında port düzgün kapatılır. USB `connect`/`disconnect` olayları dinleniyor.
+- **Ses sekmesi** adı "Zil Ses Dosyaları" olarak güncellendi.
+- **Hakkında paneli:** Telefon numarasının yanına WhatsApp simgesi eklendi; simgeye tıklayınca WhatsApp Web açılıyor (numara artık tıklanabilir değil, sadece simge).
+- Manifest sayfasındaki versiyon geçmişi kaldırıldı.
+
+**20 Haziran 2026**
+- Ses sekmesinden seçilen zil/anons dosyaları artık **otomatik ve kalıcı** olarak kaydediliyor — "Kaydet" tuşuna basmaya veya yeniden seçmeye gerek kalmadan, bilgisayar kapanıp açılsa bile ayar korunuyor.
+- **Varsayılan zil sesi (fallback):** Tenefüs, Öğrenci, Öğretmen, Toplanma zilleri için özel dosya yüklenmediyse artık otomatik olarak genel `zil.mp3` çalıyor — önceden bu ziller dedicated dosya yoksa tamamen sessiz kalıyordu, bu giderildi. Ayarlar panelinde varsayılan sesle çalışan ziller turuncu, özel dosyası olanlar yeşil renkte gösteriliyor.
+- VU metre animasyonu, yan taraftaki ses kaydırıcılarını titretmeyecek şekilde yeniden yazıldı.
+- Hakkında panelindeki telefon numarası artık tıklanınca doğrudan WhatsApp sohbeti açıyor.
+
+**16 Haziran 2026**
+- Zil sesleri ayrıştırıldı: Tenefüs, Öğrenci, Öğretmen ve Toplanma zilleri artık kendi ses dosyalarını kullanabiliyor (`zil_tenefus.mp3`, `zil_ogrenci.mp3`, `zil_ogretmen.mp3`, `zil_toplanma.mp3`). Eski tek `zil.mp3` artık sadece manuel buton/RF kumanda için kullanılıyor.
+- Tenefüs çıkışı için yeni anons desteği eklendi (`anons_tenefus.mp3`).
+
+---
+
+## 👨‍💻 Geliştirici Bilgisi
+
+- **Tasarım:** Mustafa Necati BOZOK
+- **Kodlama:** Claude (Anthropic)
+- **Lisans:** Eğitim amaçlı serbest kullanım
+- **Son Güncelleme:** 8 Ekim 2026
+
+---
+
+*Bu README, sistemi hiç görmemiş bir kullanıcının tüm adımları takip ederek kurulum yapabilmesi için hazırlanmıştır.*
